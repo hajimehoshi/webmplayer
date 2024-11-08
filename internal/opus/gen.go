@@ -24,6 +24,8 @@ import (
 	"strings"
 )
 
+const opusFileName = "opus-1.5.2.tar.gz"
+
 func main() {
 	if err := xmain(); err != nil {
 		slog.Error(err.Error())
@@ -42,7 +44,7 @@ func xmain() error {
 		return err
 	}
 
-	f, err := os.Open("opus-1.5.2.tar.gz")
+	f, err := os.Open(opusFileName)
 	if err != nil {
 		return err
 	}
@@ -84,7 +86,7 @@ func clean() error {
 }
 
 func fetchOpus() error {
-	_, err := os.Stat("opus-1.5.2.tar.gz")
+	_, err := os.Stat(opusFileName)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -92,13 +94,13 @@ func fetchOpus() error {
 		return nil
 	}
 
-	res, err := http.Get("https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz")
+	res, err := http.Get("https://downloads.xiph.org/releases/opus/" + opusFileName)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
 
-	f, err := os.Create("opus-1.5.2.tar.gz")
+	f, err := os.Create(opusFileName)
 	if err != nil {
 		return err
 	}
