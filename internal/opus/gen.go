@@ -183,6 +183,7 @@ entries:
 			"doc",
 			"silk/arm",
 			"silk/fixed",
+			"silk/float/x86",
 			"silk/mips",
 			"silk/tests",
 			"silk/x86",
@@ -196,6 +197,7 @@ entries:
 		}
 
 		// Add go:build directives if needed.
+		// TODO: This is no longer needed?
 		if strings.HasSuffix(name, ".c") || strings.HasSuffix(name, ".h") {
 			// included by dnn/lossgen.c.
 			if name == "dnn/parse_lpcnet_weights.c" {
