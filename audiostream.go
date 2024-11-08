@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2024 Hajime Hoshi
 
-package main
+package webmplayer
 
 import (
 	"fmt"
@@ -17,8 +17,8 @@ import (
 
 const samplesPerBuffer = 1024
 
-type AudioStream struct {
-	codec      AudioCodec
+type audioStream struct {
+	codec      audioCodec
 	channels   int
 	sampleRate int
 
@@ -35,22 +35,22 @@ type AudioStream struct {
 	frames []float32
 }
 
-type AudioCodec string
+type audioCodec string
 
 const (
-	CodecVorbis AudioCodec = "A_VORBIS"
-	CodecOpus   AudioCodec = "A_OPUS"
+	audioCodecVorbis audioCodec = "A_VORBIS"
+	audioCodecOpus   audioCodec = "A_OPUS"
 )
 
-func NewAudioDecoder(codec AudioCodec, codecPrivate []byte, channels, sampleRate int, src <-chan webm.Packet) (*AudioStream, error) {
-	d := &AudioStream{
+func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, sampleRate int, src <-chan webm.Packet) (*audioStream, error) {
+	d := &audioStream{
 		channels:   channels,
 		sampleRate: sampleRate,
 		codec:      codec,
 		src:        src,
 	}
 	switch codec {
-	case CodecVorbis:
+	case audioCodecVorbis:
 		var info vorbis.Info
 		vorbis.InfoInit(&info)
 		var comment vorbis.Comment
@@ -84,7 +84,7 @@ func NewAudioDecoder(codec AudioCodec, codecPrivate []byte, channels, sampleRate
 		}
 		vorbis.BlockInit(&d.voDSP, &d.voBlock)
 		return d, nil
-	case CodecOpus:
+	case audioCodecOpus:
 		var err error
 		d.opDecoder, err = opus.DecoderCreate(sampleRate, channels)
 		if err != nil {
@@ -97,7 +97,7 @@ func NewAudioDecoder(codec AudioCodec, codecPrivate []byte, channels, sampleRate
 	}
 }
 
-func (a *AudioStream) Read(buf []byte) (int, error) {
+func (a *audioStream) Read(buf []byte) (int, error) {
 readFrames:
 	if len(a.frames) > 0 {
 		n := copy(unsafe.Slice((*float32)(unsafe.Pointer(unsafe.SliceData(buf))), len(buf)/4), a.frames)
@@ -124,7 +124,7 @@ readFrames:
 	a.packets = a.packets[1:]
 
 	switch a.codec {
-	case CodecVorbis:
+	case audioCodecVorbis:
 		packet := &vorbis.OggPacket{
 			Packet: pkt.Data,
 			Bytes:  len(pkt.Data),
@@ -156,7 +156,7 @@ readFrames:
 
 		goto readFrames
 
-	case CodecOpus:
+	case audioCodecOpus:
 		sampleCount := a.opDecoder.DecodeFloat(pkt.Data, a.opPCM, 0)
 		if sampleCount <= 0 {
 			return 0, nil
@@ -180,10 +180,10 @@ readFrames:
 	}
 }
 
-func (a *AudioStream) Channels() int {
+func (a *audioStream) Channels() int {
 	return a.channels
 }
 
-func (a *AudioStream) SampleRate() int {
+func (a *audioStream) SampleRate() int {
 	return a.sampleRate
 }

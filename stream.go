@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2024 Hajime Hoshi
 
-package main
+package webmplayer
 
 import (
 	"fmt"
@@ -11,16 +11,16 @@ import (
 	"github.com/ebml-go/webm"
 )
 
-type Stream struct {
+type stream struct {
 	meta        webm.WebM
-	videoStream *VideoStream
-	audioStream *AudioStream
+	videoStream *videoStream
+	audioStream *audioStream
 
 	reader *webm.Reader
 }
 
-func NewStream(r io.ReadSeeker) (*Stream, error) {
-	s := &Stream{}
+func newStream(r io.ReadSeeker) (*stream, error) {
+	s := &stream{}
 	reader, err := webm.Parse(r, &s.meta)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func NewStream(r io.ReadSeeker) (*Stream, error) {
 
 		slog.Info(fmt.Sprintf("Found video track: %dx%d dur: %v %s", vTrack.DisplayWidth, vTrack.DisplayHeight, s.meta.Segment.GetDuration(), vTrack.CodecID))
 
-		s.videoStream, err = NewVideoStream(VCodec(vTrack.CodecID), vPackets)
+		s.videoStream, err = newVideoStream(videoCodec(vTrack.CodecID), vPackets)
 		if err != nil {
 			return nil, err
 		}
@@ -49,7 +49,7 @@ func NewStream(r io.ReadSeeker) (*Stream, error) {
 
 		slog.Info(fmt.Sprintf("Found audio track: ch: %d %.1fHz, dur: %v, codec: %s", aTrack.Channels, aTrack.SamplingFrequency, s.meta.Segment.GetDuration(), aTrack.CodecID))
 
-		s.audioStream, err = NewAudioDecoder(AudioCodec(aTrack.CodecID), aTrack.CodecPrivate,
+		s.audioStream, err = newAudioDecoder(audioCodec(aTrack.CodecID), aTrack.CodecPrivate,
 			int(aTrack.Channels), int(aTrack.SamplingFrequency), aPackets)
 		if err != nil {
 			return nil, err
@@ -82,14 +82,14 @@ func NewStream(r io.ReadSeeker) (*Stream, error) {
 	return s, nil
 }
 
-func (s *Stream) Meta() *webm.WebM {
+func (s *stream) Meta() *webm.WebM {
 	return &s.meta
 }
 
-func (s *Stream) VideoStream() *VideoStream {
+func (s *stream) VideoStream() *videoStream {
 	return s.videoStream
 }
 
-func (s *Stream) AudioStream() *AudioStream {
+func (s *stream) AudioStream() *audioStream {
 	return s.audioStream
 }

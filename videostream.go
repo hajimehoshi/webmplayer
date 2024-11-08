@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2024 Hajime Hoshi
 
-package main
+package webmplayer
 
 import (
 	"fmt"
-	"image"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -16,13 +15,7 @@ import (
 	"github.com/xlab/libvpx-go/vpx"
 )
 
-type Frame struct {
-	*image.RGBA
-	Timecode   time.Duration
-	IsKeyframe bool
-}
-
-type VideoStream struct {
+type videoStream struct {
 	src   <-chan webm.Packet
 	ctx   *vpx.CodecCtx
 	iface *vpx.CodecIface
@@ -34,27 +27,23 @@ type VideoStream struct {
 	m sync.Mutex
 }
 
-type VCodec string
+type videoCodec string
 
 const (
-	CodecVP8  VCodec = "V_VP8"
-	CodecVP9  VCodec = "V_VP9"
-	CodecVP10 VCodec = "V_VP10"
+	videoCodecVP8  videoCodec = "V_VP8"
+	videoCodecVP9  videoCodec = "V_VP9"
+	videoCodecVP10 videoCodec = "V_VP10"
 )
 
-type Positioner interface {
-	Position() time.Duration
-}
-
-func NewVideoStream(codec VCodec, src <-chan webm.Packet) (*VideoStream, error) {
-	dec := &VideoStream{
+func newVideoStream(codec videoCodec, src <-chan webm.Packet) (*videoStream, error) {
+	dec := &videoStream{
 		src: src,
 		ctx: vpx.NewCodecCtx(),
 	}
 	switch codec {
-	case CodecVP8:
+	case videoCodecVP8:
 		dec.iface = vpx.DecoderIfaceVP8()
-	case CodecVP9:
+	case videoCodecVP9:
 		dec.iface = vpx.DecoderIfaceVP9()
 	default:
 		return nil, fmt.Errorf("webmplayer: unsupported VPX codec: %s", codec)
@@ -66,11 +55,11 @@ func NewVideoStream(codec VCodec, src <-chan webm.Packet) (*VideoStream, error) 
 	return dec, nil
 }
 
-func (v *VideoStream) Update(position time.Duration) {
+func (v *videoStream) Update(position time.Duration) {
 	v.pos.Store(int64(position))
 }
 
-func (v *VideoStream) Draw(f func(*ebiten.Image)) {
+func (v *videoStream) Draw(f func(*ebiten.Image)) {
 	v.m.Lock()
 	defer v.m.Unlock()
 	if v.offscreen == nil {
@@ -79,7 +68,7 @@ func (v *VideoStream) Draw(f func(*ebiten.Image)) {
 	f(v.offscreen)
 }
 
-func (v *VideoStream) loop() {
+func (v *videoStream) loop() {
 loop:
 	for pkt := range v.src {
 		dataSize := uint32(len(pkt.Data))
