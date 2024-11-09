@@ -20,7 +20,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 )
 
@@ -196,37 +195,6 @@ entries:
 		}
 		if strings.HasSuffix(name, "_demo.c") {
 			continue
-		}
-
-		// Add go:build directives if needed.
-		// TODO: This is no longer needed?
-		if strings.HasSuffix(name, ".c") || strings.HasSuffix(name, ".h") {
-			// included by dnn/lossgen.c.
-			if name == "dnn/parse_lpcnet_weights.c" {
-				bs = append([]byte("//go:build ignore\n\n"), bs...)
-			} else {
-				pathTokens := strings.Split(strings.TrimSuffix(name, path.Ext(name)), "/")
-				var tokens []string
-				for _, pathToken := range pathTokens {
-					tokens = append(tokens, strings.Split(pathToken, "_")...)
-				}
-				switch {
-				case slices.Contains(tokens, "FIX") || slices.Contains(tokens, "dotprod") || slices.Contains(tokens, "ne10") || slices.Contains(tokens, "neon") || slices.Contains(tokens, "osce"):
-					bs = append([]byte("//go:build ignore\n\n"), bs...)
-				case slices.Contains(tokens, "arm") || slices.Contains(tokens, "neon"):
-					bs = append([]byte("//go:build arm || arm64\n\n"), bs...)
-				case slices.Contains(tokens, "armv4"), slices.Contains(tokens, "armv5e"):
-					bs = append([]byte("//go:build arm\n\n"), bs...)
-				case slices.Contains(tokens, "arm64"):
-					bs = append([]byte("//go:build arm64\n\n"), bs...)
-				case slices.Contains(tokens, "mips") || slices.Contains(tokens, "mipsr1"):
-					bs = append([]byte("//go:build mips || mips64\n\n"), bs...)
-				case slices.Contains(tokens, "avx") || slices.Contains(tokens, "avx2") ||
-					slices.Contains(tokens, "sse") || slices.Contains(tokens, "sse2") || slices.Contains(tokens, "sse4") ||
-					slices.Contains(tokens, "x86") || slices.Contains(tokens, "x86cpu"):
-					bs = append([]byte("//go:build 386 || amd64\n\n"), bs...)
-				}
-			}
 		}
 
 		// Rewrite include paths.
