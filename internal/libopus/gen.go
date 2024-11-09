@@ -72,7 +72,7 @@ func clean() error {
 			return filepath.SkipDir
 		}
 		base := filepath.Base(path)
-		if !strings.HasSuffix(base, "-opus") &&
+		if !strings.HasSuffix(base, "-libopus") &&
 			!strings.HasSuffix(base, ".c") &&
 			!strings.HasSuffix(base, ".h") {
 			return nil
@@ -247,7 +247,7 @@ entries:
 		}
 
 		if filepath.Ext(outName) == "" {
-			outName = outName + "-opus"
+			outName = outName + "-libopus"
 		}
 		if _, err := os.Stat(filepath.Join(dst, outName)); err == nil {
 			return fmt.Errorf("file already exists: %s", outName)
