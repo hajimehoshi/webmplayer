@@ -12,7 +12,7 @@ import (
 	"github.com/xlab/vorbis-go/decoder"
 	"github.com/xlab/vorbis-go/vorbis"
 
-	"github.com/hajimehoshi/webmplayer/internal/opus"
+	"github.com/hajimehoshi/webmplayer/internal/libopus"
 )
 
 const samplesPerBuffer = 1024
@@ -29,7 +29,7 @@ type audioStream struct {
 	voBlock vorbis.Block
 	voPCM   [][][]float32
 
-	opDecoder *opus.Decoder
+	opDecoder *libopus.Decoder
 	opPCM     []float32
 
 	frames []float32
@@ -86,7 +86,7 @@ func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, sampleRate
 		return d, nil
 	case audioCodecOpus:
 		var err error
-		d.opDecoder, err = opus.DecoderCreate(sampleRate, channels)
+		d.opDecoder, err = libopus.DecoderCreate(sampleRate, channels)
 		if err != nil {
 			return nil, err
 		}

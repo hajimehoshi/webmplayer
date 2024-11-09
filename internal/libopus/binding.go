@@ -3,7 +3,7 @@
 
 //go:generate go run gen.go
 
-package opus
+package libopus
 
 // #cgo CFLAGS: -DOPUS_BUILD -DUSE_ALLOCA
 //
