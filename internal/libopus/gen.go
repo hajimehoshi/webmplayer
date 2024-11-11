@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -23,7 +24,21 @@ import (
 	"strings"
 )
 
-const opusFileName = "opus-1.5.2.tar.gz"
+const tarGzURL = "https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz"
+
+var tarGzFileName string
+
+func init() {
+	u, err := url.Parse(tarGzURL)
+	if err != nil {
+		panic(err)
+	}
+	tarGzFileName = path.Base(u.Path)
+}
+
+const projectName = "libopus"
+
+const fileNameSuffix = "-" + projectName
 
 func main() {
 	if err := xmain(); err != nil {
@@ -38,18 +53,18 @@ func xmain() error {
 		return err
 	}
 
-	slog.Info("Fetching opus")
-	if err := fetchOpus(); err != nil {
+	slog.Info("Fetching " + projectName)
+	if err := fetchTarGz(); err != nil {
 		return err
 	}
 
-	f, err := os.Open(opusFileName)
+	f, err := os.Open(tarGzFileName)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	slog.Info("Extracting opus")
+	slog.Info("Extracting " + projectName)
 	entries, err := extractTarGz(f)
 	if err != nil {
 		return err
@@ -72,7 +87,7 @@ func clean() error {
 			return filepath.SkipDir
 		}
 		base := filepath.Base(path)
-		if !strings.HasSuffix(base, "-libopus") &&
+		if !strings.HasSuffix(base, fileNameSuffix) &&
 			!strings.HasSuffix(base, ".c") &&
 			!strings.HasSuffix(base, ".h") {
 			return nil
@@ -84,8 +99,8 @@ func clean() error {
 	return nil
 }
 
-func fetchOpus() error {
-	_, err := os.Stat(opusFileName)
+func fetchTarGz() error {
+	_, err := os.Stat(tarGzFileName)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -93,13 +108,13 @@ func fetchOpus() error {
 		return nil
 	}
 
-	res, err := http.Get("https://downloads.xiph.org/releases/opus/" + opusFileName)
+	res, err := http.Get(tarGzURL)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
 
-	f, err := os.Create(opusFileName)
+	f, err := os.Create(tarGzFileName)
 	if err != nil {
 		return err
 	}
@@ -157,9 +172,6 @@ entries:
 			!strings.HasSuffix(name, ".c") &&
 			!strings.HasSuffix(name, ".h") {
 			continue
-		}
-		if name == "LICENSE_PLEASE_READ.txt" {
-			println(name)
 		}
 
 		for _, name1 := range []string{
@@ -247,7 +259,7 @@ entries:
 		}
 
 		if filepath.Ext(outName) == "" {
-			outName = outName + "-libopus"
+			outName = outName + fileNameSuffix
 		}
 		if _, err := os.Stat(filepath.Join(dst, outName)); err == nil {
 			return fmt.Errorf("file already exists: %s", outName)
