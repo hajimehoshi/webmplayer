@@ -54,7 +54,7 @@ unsigned long GetHighResolutionTime(void); /* O  time in usec*/
 #if (defined(_WIN32) || defined(_WINCE))
 #include <windows.h>    /* timer */
 #else   /* Linux or Mac*/
-#include <sys_time.h>
+#include <sys/time.h>
 #endif
 
 /*********************************/

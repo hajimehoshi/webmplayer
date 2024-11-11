@@ -125,7 +125,7 @@ extern char *scratch_ptr;
 
 #ifdef ENABLE_VALGRIND
 
-#include <valgrind_memcheck.h>
+#include <valgrind/memcheck.h>
 
 #ifdef CELT_C
 char *global_stack_top=0;
@@ -162,7 +162,7 @@ extern char *global_stack_top;
 
 #ifdef ENABLE_VALGRIND
 
-#include <valgrind_memcheck.h>
+#include <valgrind/memcheck.h>
 #define OPUS_CHECK_ARRAY(ptr, len) VALGRIND_CHECK_MEM_IS_DEFINED(ptr, len*sizeof(*ptr))
 #define OPUS_CHECK_VALUE(value) VALGRIND_CHECK_VALUE_IS_DEFINED(value)
 #define OPUS_CHECK_ARRAY_COND(ptr, len) VALGRIND_CHECK_MEM_IS_DEFINED(ptr, len*sizeof(*ptr))
