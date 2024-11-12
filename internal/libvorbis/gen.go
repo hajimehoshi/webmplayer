@@ -51,7 +51,6 @@ func xmain() error {
 		},
 		BlockedDirs: []string{
 			"examples",
-			"lib/modes",
 			"symbian",
 			"test",
 			"vq",
