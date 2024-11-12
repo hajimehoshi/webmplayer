@@ -5,7 +5,7 @@
 
 package libopus
 
-// #cgo CFLAGS: -DOPUS_BUILD -DUSE_ALLOCA
+// #cgo CFLAGS: -DOPUS_BUILD -DUSE_ALLOCA -DHAVE_LRINT -DHAVE_LRINTF
 //
 // #include "opus.h"
 import "C"
