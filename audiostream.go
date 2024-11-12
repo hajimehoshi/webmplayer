@@ -9,9 +9,9 @@ import (
 	"unsafe"
 
 	"github.com/ebml-go/webm"
-	"github.com/xlab/vorbis-go/vorbis"
 
 	"github.com/hajimehoshi/webmplayer/internal/libopus"
+	"github.com/hajimehoshi/webmplayer/internal/libvorbis"
 )
 
 const samplesPerBuffer = 1024
@@ -24,9 +24,10 @@ type audioStream struct {
 	src     <-chan webm.Packet
 	packets []webm.Packet
 
-	voDSP   vorbis.DspState
-	voBlock vorbis.Block
-	voPCM   [][][]float32
+	// voInfo must be kept as voDPS has a reference to it.
+	voInfo  *libvorbis.Info
+	voDSP   *libvorbis.DspState
+	voBlock *libvorbis.Block
 
 	opDecoder *libopus.Decoder
 	opPCM     []float32
@@ -48,33 +49,38 @@ func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, samplingFr
 		codec:             codec,
 		src:               src,
 	}
+	// TODO: Clear vo* and op* objects explicitly when a is finalized.
 	switch codec {
 	case audioCodecVorbis:
-		info, comment, err := readVorbisCodecPrivate(codecPrivate)
+		info, _, err := readVorbisCodecPrivate(codecPrivate)
 		if err != nil {
 			return nil, err
 		}
-		if comment.Comments > 0 {
-			comment.UserComments = make([][]byte, comment.Comments)
-			comment.Deref()
-		}
-		if int(info.Channels) != channels {
+		a.voInfo = info
+
+		if info.Channels() != channels {
 			a.channels = int(channels)
-			return nil, fmt.Errorf("webmplayer: channel count doesn't match: %d vs %d", info.Channels, channels)
+			return nil, fmt.Errorf("webmplayer: channel count doesn't match: %d vs %d", info.Channels(), channels)
 		}
-		if int(info.Rate) != samplingFrequency {
-			a.samplingFrequency = int(info.Rate)
-			return nil, fmt.Errorf("webmplayer: sample rate doesn't match: %d vs %d", info.Rate, samplingFrequency)
+		if info.Rate() != samplingFrequency {
+			a.samplingFrequency = info.Rate()
+			return nil, fmt.Errorf("webmplayer: sample rate doesn't match: %d vs %d", info.Rate(), samplingFrequency)
 		}
-		ret := vorbis.SynthesisInit(&a.voDSP, info)
-		if ret != 0 {
-			return nil, fmt.Errorf("webmplayer: vorbis.SynthesisInit failed: %d", ret)
+
+		dsp, err := libvorbis.SynthesisInit(info)
+		if err != nil {
+			return nil, fmt.Errorf("webmplayer: libvorbis.SynthesisInit failed: %w", err)
 		}
-		a.voPCM = [][][]float32{
-			make([][]float32, channels),
+		a.voDSP = dsp
+
+		block, err := libvorbis.BlockInit(a.voDSP)
+		if err != nil {
+			return nil, fmt.Errorf("webmplayer: libvorbis.BlockInit failed: %w", err)
 		}
-		vorbis.BlockInit(&a.voDSP, &a.voBlock)
+		a.voBlock = block
+
 		return a, nil
+
 	case audioCodecOpus:
 		var err error
 		a.opDecoder, err = libopus.DecoderCreate(samplingFrequency, channels)
@@ -116,29 +122,37 @@ readFrames:
 
 	switch a.codec {
 	case audioCodecVorbis:
-		packet := &vorbis.OggPacket{
+		packet := &libvorbis.OggPacket{
 			Packet: pkt.Data,
-			Bytes:  len(pkt.Data),
 		}
-		if ret := vorbis.Synthesis(&a.voBlock, packet); ret != 0 {
-			return 0, fmt.Errorf("webmplayer: vorbis.Synthesis failed: %d", ret)
-		}
-
-		if ret := vorbis.SynthesisBlockin(&a.voDSP, &a.voBlock); ret != 0 {
-			return 0, fmt.Errorf("webmplayer: vorbis.SynthesisBlockin failed: %d", ret)
+		if err := libvorbis.Synthesis(a.voBlock, packet); err != nil {
+			return 0, fmt.Errorf("webmplayer: libvorbis.Synthesis failed: %w", err)
 		}
 
-		for sampleCount := vorbis.SynthesisPcmout(&a.voDSP, a.voPCM); sampleCount > 0; sampleCount = vorbis.SynthesisPcmout(&a.voDSP, a.voPCM) {
-			for i := 0; i < int(sampleCount); i++ {
-				for j := 0; j < a.channels; j++ {
-					v := a.voPCM[0][j][:sampleCount][i]
-					a.frames = append(a.frames, v)
-					if a.channels == 1 {
+		if err := libvorbis.SynthesisBlockin(a.voDSP, a.voBlock); err != nil {
+			return 0, fmt.Errorf("webmplayer: libvorbis.SynthesisBlockin failed: %w", err)
+		}
+
+		for pcm := libvorbis.SynthesisPcmout(a.voDSP); len(pcm) > 0 && len(pcm[0]) > 0; pcm = libvorbis.SynthesisPcmout(a.voDSP) {
+			switch a.channels {
+			case 1:
+				for i := range pcm[0] {
+					v := pcm[0][i]
+					a.frames = append(a.frames, v, v)
+				}
+			case 2:
+				for i := range pcm[0] {
+					for ch := range pcm {
+						v := pcm[ch][i]
 						a.frames = append(a.frames, v)
 					}
 				}
+			default:
+				return 0, fmt.Errorf("webmplayer: unsupported channel count: %d", a.channels)
 			}
-			vorbis.SynthesisRead(&a.voDSP, sampleCount)
+			if err := libvorbis.SynthesisRead(a.voDSP, len(pcm[0])); err != nil {
+				return 0, fmt.Errorf("webmplayer: libvorbis.SynthesisRead failed: %w", err)
+			}
 		}
 
 		goto readFrames
@@ -175,7 +189,7 @@ func (a *audioStream) SamplingFrequency() int {
 	return a.samplingFrequency
 }
 
-func readVorbisCodecPrivate(codecPrivate []byte) (*vorbis.Info, *vorbis.Comment, error) {
+func readVorbisCodecPrivate(codecPrivate []byte) (*libvorbis.Info, *libvorbis.Comment, error) {
 	if len(codecPrivate) < 1 {
 		return nil, nil, errors.New("webmplayer: codec private data is too short")
 	}
@@ -222,26 +236,18 @@ func readVorbisCodecPrivate(codecPrivate []byte) (*vorbis.Info, *vorbis.Comment,
 	headers[1] = codecPrivate[offset+size0 : offset+size0+size1]
 	headers[2] = codecPrivate[offset+size0+size1:]
 
-	var info vorbis.Info
-	vorbis.InfoInit(&info)
-	var comment vorbis.Comment
-	vorbis.CommentInit(&comment)
+	info := libvorbis.InfoInit()
+	comment := libvorbis.CommentInit()
 
 	for i := 0; i < 3; i++ {
-		packet := vorbis.OggPacket{
-			Bytes:  len(headers[i]),
+		packet := &libvorbis.OggPacket{
 			Packet: headers[i],
+			BOS:    i == 0,
 		}
-		if i == 0 {
-			packet.BOS = 1
-		}
-		if ret := vorbis.SynthesisHeaderin(&info, &comment, &packet); ret < 0 {
-			return nil, nil, fmt.Errorf("webmplayer: %d. header damaged", i+1)
+		if err := libvorbis.SynthesisHeaderin(info, comment, packet); err != nil {
+			return nil, nil, fmt.Errorf("webmplayer: libvorbis.SynthesisHeaderin failed: %w", err)
 		}
 	}
 
-	info.Deref()
-	comment.Deref()
-
-	return &info, &comment, nil
+	return info, comment, nil
 }

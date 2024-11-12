@@ -18,8 +18,6 @@ github.com/petar/GoLLRB v0.0.0-20130427215148-53be0d36a84c h1:AwcgVYzW1T+QuJ2fc5
 github.com/petar/GoLLRB v0.0.0-20130427215148-53be0d36a84c/go.mod h1:HUpKUBZnpzkdx0kD/+Yfuft+uD3zHGtXF/XJB14TUr4=
 github.com/xlab/libvpx-go v0.0.0-20220203233824-652b2616315c h1:dYh8PXMQ2Ibn0EpOHJEUyaWlcZ1egvB3elvzPzC7JZ8=
 github.com/xlab/libvpx-go v0.0.0-20220203233824-652b2616315c/go.mod h1:aDpRjomFsJw5z7oxScCKeB5NNGqibqdOgmpnOaEVMQs=
-github.com/xlab/vorbis-go v0.0.0-20210911202351-b5b85f1ec645 h1:lYg/+vV/Fd5WM1+Ptg54Am3y4mDXaMSrT+mKUHV5uVc=
-github.com/xlab/vorbis-go v0.0.0-20210911202351-b5b85f1ec645/go.mod h1:AMqfx3jFwPqem3u8mF2lsRodZs30jG/Mag5HZ3mB3sA=
 golang.org/x/image v0.20.0 h1:7cVCUjQwfL18gyBJOmYvptfSHS8Fb3YUDtfLIZ7Nbpw=
 golang.org/x/image v0.20.0/go.mod h1:0a88To4CYVBAHp5FXJm8o7QbUl37Vd85ply1vyD8auM=
 golang.org/x/sync v0.8.0 h1:3NFvSEYkUoMifnESzZl15y791HH1qU2xm6eCJU5ZPXQ=

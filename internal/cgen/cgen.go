@@ -297,6 +297,8 @@ entries:
 		}
 		if _, err := os.Stat(filepath.Join(dst, outName)); err == nil {
 			return fmt.Errorf("file already exists: %s", outName)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
 		}
 		if err := os.WriteFile(filepath.Join(dst, outName), bs, 0644); err != nil {
 			return err
