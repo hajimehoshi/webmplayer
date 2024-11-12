@@ -4,11 +4,11 @@
 package webmplayer
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 
 	"github.com/ebml-go/webm"
-	"github.com/xlab/vorbis-go/decoder"
 	"github.com/xlab/vorbis-go/vorbis"
 
 	"github.com/hajimehoshi/webmplayer/internal/libopus"
@@ -50,16 +50,10 @@ func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, samplingFr
 	}
 	switch codec {
 	case audioCodecVorbis:
-		var info vorbis.Info
-		vorbis.InfoInit(&info)
-		var comment vorbis.Comment
-		vorbis.CommentInit(&comment)
-		err := decoder.ReadHeaders(codecPrivate, &info, &comment)
+		info, comment, err := readVorbisCodecPrivate(codecPrivate)
 		if err != nil {
 			return nil, err
 		}
-		info.Deref()
-		comment.Deref()
 		if comment.Comments > 0 {
 			comment.UserComments = make([][]byte, comment.Comments)
 			comment.Deref()
@@ -72,7 +66,7 @@ func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, samplingFr
 			d.samplingFrequency = int(info.Rate)
 			return nil, fmt.Errorf("webmplayer: sample rate doesn't match: %d vs %d", info.Rate, samplingFrequency)
 		}
-		ret := vorbis.SynthesisInit(&d.voDSP, &info)
+		ret := vorbis.SynthesisInit(&d.voDSP, info)
 		if ret != 0 {
 			return nil, fmt.Errorf("webmplayer: vorbis.SynthesisInit failed: %d", ret)
 		}
@@ -183,4 +177,75 @@ func (a *audioStream) Channels() int {
 
 func (a *audioStream) SamplingFrequency() int {
 	return a.samplingFrequency
+}
+
+func readVorbisCodecPrivate(codecPrivate []byte) (*vorbis.Info, *vorbis.Comment, error) {
+	if len(codecPrivate) < 1 {
+		return nil, nil, errors.New("webmplayer: codec private data is too short")
+	}
+
+	p := codecPrivate
+
+	// https://www.matroska.org/technical/codec_specs.html
+	// > Byte 1: number of distinct packets #p minus one inside the CodecPrivate block. This MUST be “2” for current (as of 2016-07-08) Vorbis headers.
+	if p[0] != 0x02 {
+		return nil, nil, fmt.Errorf("webmplayer: wrong codec private data for Vorbis: %d", p[0])
+	}
+	offset := 1
+	p = p[1:]
+
+	headers := make([][]byte, 3)
+	var size0, size1 int
+
+	// https://xiph.org/vorbis/doc/framing.html
+	// > The raw packet is logically divided into [n] 255 byte segments and a last fractional segment of < 255 bytes.
+	// > A packet size may well consist only of the trailing fractional segment, and a fractional segment may be zero length.
+	// > These values, called "lacing values" are then saved and placed into the header segment table.
+	for i := 0; i < 2; i++ {
+		for (p[0] == 0xff) && offset < len(codecPrivate) {
+			if i == 0 {
+				size0 += 0xff
+			} else {
+				size1 += 0xff
+			}
+			offset++
+			p = p[1:]
+		}
+		if offset >= len(codecPrivate)-1 {
+			return nil, nil, errors.New("webmplayer: header sizes damaged")
+		}
+		if i == 0 {
+			size0 += int(p[0])
+		} else {
+			size1 += int(p[0])
+		}
+		offset++
+		p = p[1:]
+	}
+	headers[0] = codecPrivate[offset : offset+size0]
+	headers[1] = codecPrivate[offset+size0 : offset+size0+size1]
+	headers[2] = codecPrivate[offset+size0+size1:]
+
+	var info vorbis.Info
+	vorbis.InfoInit(&info)
+	var comment vorbis.Comment
+	vorbis.CommentInit(&comment)
+
+	for i := 0; i < 3; i++ {
+		packet := vorbis.OggPacket{
+			Bytes:  len(headers[i]),
+			Packet: headers[i],
+		}
+		if i == 0 {
+			packet.BOS = 1
+		}
+		if ret := vorbis.SynthesisHeaderin(&info, &comment, &packet); ret < 0 {
+			return nil, nil, fmt.Errorf("webmplayer: %d. header damaged", i+1)
+		}
+	}
+
+	info.Deref()
+	comment.Deref()
+
+	return &info, &comment, nil
 }
