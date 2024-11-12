@@ -5,7 +5,6 @@ package webmplayer
 
 import (
 	"fmt"
-	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +22,8 @@ type videoStream struct {
 	offscreen *ebiten.Image
 
 	pos atomic.Int64
+
+	err atomic.Pointer[error]
 
 	m sync.Mutex
 }
@@ -55,8 +56,12 @@ func newVideoStream(codec videoCodec, src <-chan webm.Packet) (*videoStream, err
 	return dec, nil
 }
 
-func (v *videoStream) Update(position time.Duration) {
+func (v *videoStream) Update(position time.Duration) error {
+	if err := v.err.Load(); err != nil {
+		return *err
+	}
 	v.pos.Store(int64(position))
+	return nil
 }
 
 func (v *videoStream) Draw(f func(*ebiten.Image)) {
@@ -73,8 +78,8 @@ loop:
 	for pkt := range v.src {
 		dataSize := uint32(len(pkt.Data))
 		if err := vpx.Error(vpx.CodecDecode(v.ctx, string(pkt.Data), dataSize, nil, 0)); err != nil {
-			slog.Warn(err.Error())
-			continue
+			v.err.Store(&err)
+			return
 		}
 		pos := time.Duration(v.pos.Load())
 		if pos-time.Second/60 > pkt.Timecode {

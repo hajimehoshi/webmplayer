@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -38,6 +39,22 @@ func xmain() error {
 	player, err := webmplayer.NewPlayer(streams...)
 	if err != nil {
 		return err
+	}
+
+	if player.VideoCodecID() != "" {
+		w, h := player.VideoSize()
+		slog.Info("Video",
+			"codec", player.VideoCodecID(),
+			"width", w,
+			"height", h,
+			"duration", player.VideoDuration())
+	}
+	if player.AudioCodecID() != "" {
+		slog.Info("Audio",
+			"codec", player.AudioCodecID(),
+			"channels", player.AudioChannels(),
+			"samplingFrequency", player.AudioSamplingFrequency(),
+			"duration", player.AudioDuration())
 	}
 
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)

@@ -4,9 +4,7 @@
 package webmplayer
 
 import (
-	"fmt"
 	"io"
-	"log/slog"
 
 	"github.com/ebml-go/webm"
 )
@@ -35,9 +33,6 @@ func newStream(r io.ReadSeeker) (*stream, error) {
 
 	if vTrack != nil {
 		vPackets = make(chan webm.Packet, 32)
-
-		slog.Info(fmt.Sprintf("Found video track: %dx%d dur: %v %s", vTrack.DisplayWidth, vTrack.DisplayHeight, s.meta.Segment.GetDuration(), vTrack.CodecID))
-
 		s.videoStream, err = newVideoStream(videoCodec(vTrack.CodecID), vPackets)
 		if err != nil {
 			return nil, err
@@ -46,11 +41,7 @@ func newStream(r io.ReadSeeker) (*stream, error) {
 
 	if aTrack != nil {
 		aPackets = make(chan webm.Packet, 32)
-
-		slog.Info(fmt.Sprintf("Found audio track: ch: %d %.1fHz, dur: %v, codec: %s", aTrack.Channels, aTrack.SamplingFrequency, s.meta.Segment.GetDuration(), aTrack.CodecID))
-
-		s.audioStream, err = newAudioDecoder(audioCodec(aTrack.CodecID), aTrack.CodecPrivate,
-			int(aTrack.Channels), int(aTrack.SamplingFrequency), aPackets)
+		s.audioStream, err = newAudioDecoder(audioCodec(aTrack.CodecID), aTrack.CodecPrivate, int(aTrack.Channels), int(aTrack.SamplingFrequency), aPackets)
 		if err != nil {
 			return nil, err
 		}

@@ -6,8 +6,9 @@ package webmplayer
 import (
 	"fmt"
 	"io"
-	"log/slog"
+	"time"
 
+	"github.com/ebml-go/webm"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
 )
@@ -19,6 +20,11 @@ type Player struct {
 	videoStream *videoStream
 	audioStream *audioStream
 	audioPlayer *audio.Player
+
+	videoDuration time.Duration
+	videoCodecID  string
+	audioDuration time.Duration
+	audioCodecID  string
 }
 
 func NewPlayer(streams ...io.ReadSeeker) (*Player, error) {
@@ -31,24 +37,45 @@ func NewPlayer(streams ...io.ReadSeeker) (*Player, error) {
 	}
 
 	videoStream := stream1.VideoStream()
-	audioStream := stream1.AudioStream()
+	videoMeta := stream1.Meta()
+	videoTrack := videoMeta.FindFirstVideoTrack()
+
+	var audioStream *audioStream
+	var audioMeta *webm.WebM
 	if stream2 != nil {
 		audioStream = stream2.AudioStream()
+		audioMeta = stream2.Meta()
+	} else {
+		audioStream = stream1.AudioStream()
+		audioMeta = stream1.Meta()
 	}
+	audioTrack := audioMeta.FindFirstAudioTrack()
 
 	var w, h int
-	if vtrack := stream1.Meta().FindFirstVideoTrack(); vtrack != nil {
-		w, h = int(vtrack.DisplayWidth), int(vtrack.DisplayHeight)
+	var videoCodecID string
+	if videoTrack != nil {
+		w, h = int(videoTrack.DisplayWidth), int(videoTrack.DisplayHeight)
+		videoCodecID = videoTrack.CodecID
+	}
+
+	var audioCodecID string
+	if audioTrack != nil {
+		audioCodecID = audioTrack.CodecID
 	}
 
 	v := &Player{
-		width:       w,
-		height:      h,
-		videoStream: videoStream,
-		audioStream: audioStream,
+		width:         w,
+		height:        h,
+		videoStream:   videoStream,
+		audioStream:   audioStream,
+		videoDuration: videoMeta.GetDuration(),
+		videoCodecID:  videoCodecID,
+		audioDuration: audioMeta.GetDuration(),
+		audioCodecID:  audioCodecID,
 	}
+
 	if audioStream != nil {
-		ctx := audio.NewContext(audioStream.SampleRate())
+		ctx := audio.NewContext(audioStream.SamplingFrequency())
 		p, err := ctx.NewPlayerF32(audioStream)
 		if err != nil {
 			return nil, err
@@ -59,12 +86,44 @@ func NewPlayer(streams ...io.ReadSeeker) (*Player, error) {
 	return v, nil
 }
 
-func (v *Player) VideoSize() (int, int) {
-	return v.width, v.height
+func (p *Player) VideoSize() (int, int) {
+	return p.width, p.height
 }
 
-func (v *Player) Update() error {
-	v.videoStream.Update(v.audioPlayer.Position())
+func (p *Player) VideoDuration() time.Duration {
+	return p.videoDuration
+}
+
+func (p *Player) VideoCodecID() string {
+	return p.videoCodecID
+}
+
+func (p *Player) AudioChannels() int {
+	if p.audioStream == nil {
+		return 0
+	}
+	return p.audioStream.Channels()
+}
+
+func (p *Player) AudioSamplingFrequency() int {
+	if p.audioStream == nil {
+		return 0
+	}
+	return p.audioStream.SamplingFrequency()
+}
+
+func (p *Player) AudioDuration() time.Duration {
+	return p.audioDuration
+}
+
+func (p *Player) AudioCodecID() string {
+	return p.audioCodecID
+}
+
+func (p *Player) Update() error {
+	if err := p.videoStream.Update(p.audioPlayer.Position()); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -74,11 +133,11 @@ type PlayerDrawOptions struct {
 	Blend      ebiten.Blend
 }
 
-func (v *Player) Draw(screen *ebiten.Image, options *PlayerDrawOptions) {
-	if v.videoStream == nil {
+func (p *Player) Draw(screen *ebiten.Image, options *PlayerDrawOptions) {
+	if p.videoStream == nil {
 		return
 	}
-	v.videoStream.Draw(func(image *ebiten.Image) {
+	p.videoStream.Draw(func(image *ebiten.Image) {
 		op := &ebiten.DrawImageOptions{}
 		op.Filter = ebiten.FilterLinear
 		if options != nil {
@@ -109,11 +168,10 @@ func discoverStreams(streams ...io.ReadSeeker) (*stream, *stream, error) {
 	var stream1Audio bool
 	stream1, err := newStream(streams[0])
 	if err != nil {
-		slog.Warn(err.Error())
-	} else {
-		stream1Video = stream1.Meta().FindFirstVideoTrack() != nil
-		stream1Audio = stream1.Meta().FindFirstAudioTrack() != nil
+		return nil, nil, err
 	}
+	stream1Video = stream1.Meta().FindFirstVideoTrack() != nil
+	stream1Audio = stream1.Meta().FindFirstAudioTrack() != nil
 	if stream1Video && stream1Audio {
 		// Found both Video+Audio in the first stream.
 		return stream1, nil, nil
@@ -123,11 +181,10 @@ func discoverStreams(streams ...io.ReadSeeker) (*stream, *stream, error) {
 	var stream2Audio bool
 	stream2, err := newStream(streams[1])
 	if err != nil {
-		slog.Warn(err.Error())
-	} else {
-		stream2Video = stream2.Meta().FindFirstVideoTrack() != nil
-		stream2Audio = stream2.Meta().FindFirstAudioTrack() != nil
+		return nil, nil, err
 	}
+	stream2Video = stream2.Meta().FindFirstVideoTrack() != nil
+	stream2Audio = stream2.Meta().FindFirstAudioTrack() != nil
 
 	switch {
 	case stream1Video && stream2Audio:

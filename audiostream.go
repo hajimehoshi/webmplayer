@@ -5,7 +5,6 @@ package webmplayer
 
 import (
 	"fmt"
-	"log/slog"
 	"unsafe"
 
 	"github.com/ebml-go/webm"
@@ -18,9 +17,9 @@ import (
 const samplesPerBuffer = 1024
 
 type audioStream struct {
-	codec      audioCodec
-	channels   int
-	sampleRate int
+	codec             audioCodec
+	channels          int
+	samplingFrequency int
 
 	src     <-chan webm.Packet
 	packets []webm.Packet
@@ -42,12 +41,12 @@ const (
 	audioCodecOpus   audioCodec = "A_OPUS"
 )
 
-func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, sampleRate int, src <-chan webm.Packet) (*audioStream, error) {
+func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, samplingFrequency int, src <-chan webm.Packet) (*audioStream, error) {
 	d := &audioStream{
-		channels:   channels,
-		sampleRate: sampleRate,
-		codec:      codec,
-		src:        src,
+		channels:          channels,
+		samplingFrequency: samplingFrequency,
+		codec:             codec,
+		src:               src,
 	}
 	switch codec {
 	case audioCodecVorbis:
@@ -64,16 +63,14 @@ func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, sampleRate
 		if comment.Comments > 0 {
 			comment.UserComments = make([][]byte, comment.Comments)
 			comment.Deref()
-			streamInfo := decoder.ReadInfo(&info, &comment)
-			slog.Info(fmt.Sprintf("vorbis: %s", streamInfo))
 		}
 		if int(info.Channels) != channels {
 			d.channels = int(channels)
-			slog.Warn(fmt.Sprintf("vorbis: channel count mismatch %d != %d", info.Channels, channels))
+			return nil, fmt.Errorf("webmplayer: channel count doesn't match: %d vs %d", info.Channels, channels)
 		}
-		if int(info.Rate) != sampleRate {
-			d.sampleRate = int(info.Rate)
-			slog.Warn(fmt.Sprintf("vorbis: sample rate mismatch %d != %d", info.Rate, sampleRate))
+		if int(info.Rate) != samplingFrequency {
+			d.samplingFrequency = int(info.Rate)
+			return nil, fmt.Errorf("webmplayer: sample rate doesn't match: %d vs %d", info.Rate, samplingFrequency)
 		}
 		ret := vorbis.SynthesisInit(&d.voDSP, &info)
 		if ret != 0 {
@@ -86,7 +83,7 @@ func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, sampleRate
 		return d, nil
 	case audioCodecOpus:
 		var err error
-		d.opDecoder, err = libopus.DecoderCreate(sampleRate, channels)
+		d.opDecoder, err = libopus.DecoderCreate(samplingFrequency, channels)
 		if err != nil {
 			return nil, err
 		}
@@ -184,6 +181,6 @@ func (a *audioStream) Channels() int {
 	return a.channels
 }
 
-func (a *audioStream) SampleRate() int {
-	return a.sampleRate
+func (a *audioStream) SamplingFrequency() int {
+	return a.samplingFrequency
 }
