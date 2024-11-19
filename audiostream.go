@@ -124,15 +124,11 @@ readFrames:
 			return 0, fmt.Errorf("webmplayer: vorbis.Synthesis failed: %d", ret)
 		}
 
-		vorbis.SynthesisBlockin(&a.voDSP, &a.voBlock)
-
-		sampleCount := vorbis.SynthesisPcmout(&a.voDSP, a.voPCM)
-		if sampleCount == 0 {
-			vorbis.SynthesisRead(&a.voDSP, sampleCount)
-			return 0, nil
+		if ret := vorbis.SynthesisBlockin(&a.voDSP, &a.voBlock); ret != 0 {
+			return 0, fmt.Errorf("webmplayer: vorbis.SynthesisBlockin failed: %d", ret)
 		}
 
-		for ; sampleCount > 0; sampleCount = vorbis.SynthesisPcmout(&a.voDSP, a.voPCM) {
+		for sampleCount := vorbis.SynthesisPcmout(&a.voDSP, a.voPCM); sampleCount > 0; sampleCount = vorbis.SynthesisPcmout(&a.voDSP, a.voPCM) {
 			for i := 0; i < int(sampleCount); i++ {
 				for j := 0; j < a.channels; j++ {
 					v := a.voPCM[0][j][:sampleCount][i]
