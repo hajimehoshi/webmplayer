@@ -4,7 +4,7 @@ go 1.22.0
 
 require (
 	github.com/ebml-go/webm v0.0.0-20221117133942-84fa5245cf70
-	github.com/hajimehoshi/ebiten/v2 v2.8.3
+	github.com/hajimehoshi/ebiten/v2 v2.8.5
 	github.com/xlab/libvpx-go v0.0.0-20220203233824-652b2616315c
 )
 
