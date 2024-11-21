@@ -37,23 +37,23 @@ const (
 )
 
 func newVideoStream(codec videoCodec, src <-chan webm.Packet) (*videoStream, error) {
-	dec := &videoStream{
+	v := &videoStream{
 		src: src,
 		ctx: vpx.NewCodecCtx(),
 	}
 	switch codec {
 	case videoCodecVP8:
-		dec.iface = vpx.DecoderIfaceVP8()
+		v.iface = vpx.DecoderIfaceVP8()
 	case videoCodecVP9:
-		dec.iface = vpx.DecoderIfaceVP9()
+		v.iface = vpx.DecoderIfaceVP9()
 	default:
 		return nil, fmt.Errorf("webmplayer: unsupported VPX codec: %s", codec)
 	}
-	if err := vpx.Error(vpx.CodecDecInitVer(dec.ctx, dec.iface, nil, 0, vpx.DecoderABIVersion)); err != nil {
+	if err := vpx.Error(vpx.CodecDecInitVer(v.ctx, v.iface, nil, 0, vpx.DecoderABIVersion)); err != nil {
 		return nil, err
 	}
-	go dec.loop()
-	return dec, nil
+	go v.loop()
+	return v, nil
 }
 
 func (v *videoStream) Update(position time.Duration) error {

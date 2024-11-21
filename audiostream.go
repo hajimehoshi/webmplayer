@@ -42,7 +42,7 @@ const (
 )
 
 func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, samplingFrequency int, src <-chan webm.Packet) (*audioStream, error) {
-	d := &audioStream{
+	a := &audioStream{
 		channels:          channels,
 		samplingFrequency: samplingFrequency,
 		codec:             codec,
@@ -59,32 +59,32 @@ func newAudioDecoder(codec audioCodec, codecPrivate []byte, channels, samplingFr
 			comment.Deref()
 		}
 		if int(info.Channels) != channels {
-			d.channels = int(channels)
+			a.channels = int(channels)
 			return nil, fmt.Errorf("webmplayer: channel count doesn't match: %d vs %d", info.Channels, channels)
 		}
 		if int(info.Rate) != samplingFrequency {
-			d.samplingFrequency = int(info.Rate)
+			a.samplingFrequency = int(info.Rate)
 			return nil, fmt.Errorf("webmplayer: sample rate doesn't match: %d vs %d", info.Rate, samplingFrequency)
 		}
-		ret := vorbis.SynthesisInit(&d.voDSP, info)
+		ret := vorbis.SynthesisInit(&a.voDSP, info)
 		if ret != 0 {
 			return nil, fmt.Errorf("webmplayer: vorbis.SynthesisInit failed: %d", ret)
 		}
-		d.voPCM = [][][]float32{
+		a.voPCM = [][][]float32{
 			make([][]float32, channels),
 		}
-		vorbis.BlockInit(&d.voDSP, &d.voBlock)
-		return d, nil
+		vorbis.BlockInit(&a.voDSP, &a.voBlock)
+		return a, nil
 	case audioCodecOpus:
 		var err error
-		d.opDecoder, err = libopus.DecoderCreate(samplingFrequency, channels)
+		a.opDecoder, err = libopus.DecoderCreate(samplingFrequency, channels)
 		if err != nil {
 			return nil, err
 		}
-		d.opPCM = make([]float32, samplesPerBuffer*channels)
-		return d, nil
+		a.opPCM = make([]float32, samplesPerBuffer*channels)
+		return a, nil
 	default:
-		return d, fmt.Errorf("webmplayer: unsupported audio codec: %s", codec)
+		return a, fmt.Errorf("webmplayer: unsupported audio codec: %s", codec)
 	}
 }
 
